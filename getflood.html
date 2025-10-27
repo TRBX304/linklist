@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>高速 GET テスト（ブラウザ）</title>
+<style>
+  body { font-family: system-ui, "Helvetica Neue", Arial; padding: 18px; max-width: 980px; margin: auto; }
+  h1 { margin-top: 0; }
+  label { display:block; margin-top:8px; }
+  input, button, select { padding:6px 8px; font-size:14px; margin-right:8px; }
+  .controls { background:#f7f7f7; padding:12px; border-radius:8px; }
+  #stats { margin-top:12px; white-space:pre-wrap; font-family:monospace; background:#fff; padding:10px; border-radius:6px; box-shadow:0 0 0 1px #eee inset; }
+  #hist { margin-top:8px; display:flex; gap:6px; align-items:flex-end; height:120px; }
+  .bar { width:100%; background:#bde; border-radius:4px 4px 0 0; text-align:center; font-size:11px; }
+  .small { font-size:12px; color:#555; }
+</style>
+</head>
+<body>
+  <h1>高速 GET テスト（ブラウザ）</h1>
+  <div class="controls">
+    <label>Target URL:
+      <input id="url" type="text" size="40" value="http://localhost:8000/" />
+    </label>
+
+    <label>総リクエスト数:
+      <input id="total" type="number" value="500" min="1" />
+    </label>
+
+    <label>同時接続数 (concurrency):
+      <input id="concurrency" type="number" value="20" min="1" />
+      <span class="small">（ブラウザはホストごとに同時接続に制限があります）</span>
+    </label>
+
+    <label>最大毎秒レート（0で無制限）:
+      <input id="rate" type="number" value="0" min="0" />
+      <span class="small">（0 = 制限なし）</span>
+    </label>
+
+    <label>タイムアウト(ms, 0でなし):
+      <input id="timeout" type="number" value="5000" min="0" />
+    </label>
+
+    <div style="margin-top:10px;">
+      <button id="start">開始</button>
+      <button id="stop" disabled>停止</button>
+      <button id="download" disabled>CSV ダウンロード</button>
+      <span id="running" style="margin-left:12px;color:#c33;font-weight:bold;"></span>
+    </div>
+
+    <div id="stats" aria-live="polite">準備完了。</div>
+    <div id="hist"></div>
+  </div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const startBtn = $('start');
+  const stopBtn = $('stop');
+  const downloadBtn = $('download');
+  const statsDiv = $('stats');
+  const histDiv = $('hist');
+
+  let stopRequested = false;
+  let results = [];
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function updateStatsDisplay(s) { statsDiv.textContent = s; }
+
+  function makeCSV(rows) {
+    const header = ['index','timestamp','status','http_status','latency_ms','error'];
+    const lines = [header.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.index, new Date(r.ts).toISOString(), r.status, r.httpStatus ?? '', r.latency?.toFixed(3) ?? '', (r.error ?? '').replace(/"/g,'""')
+      ].map(v => `"${v}"`).join(','));
+    }
+    return lines.join('\n');
+  }
+
+  function drawHistogram(latencies) {
+    histDiv.innerHTML = '';
+    if (!latencies.length) return;
+    const buckets = [0,1,2,5,10,20,50,100,200,500,1000,5000];
+    const counts = new Array(buckets.length).fill(0);
+    for (const v of latencies) {
+      let i = buckets.findIndex(b => v <= b);
+      if (i === -1) i = buckets.length-1;
+      counts[i]++;
+    }
+    const max = Math.max(...counts);
+    for (let i=0;i<buckets.length;i++){
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.flex = '1';
+      bar.style.height = (max === 0 ? 0 : (counts[i]/max*100)) + '%';
+      bar.title = `${buckets[i]} ms: ${counts[i]}`;
+      bar.textContent = counts[i] ? counts[i] : '';
+      histDiv.appendChild(bar);
+    }
+  }
+
+  async function sendFetch(url, timeout) {
+    const start = performance.now();
+    const controller = new AbortController();
+    let timer = null;
+    if (timeout > 0) {
+      timer = setTimeout(() => controller.abort(), timeout);
+    }
+    try {
+      const resp = await fetch(url, { method: 'GET', cache: 'no-store', signal: controller.signal, mode: 'cors' });
+      try { await resp.text(); } catch(e){}
+      const latency = performance.now() - start;
+      if (timer) clearTimeout(timer);
+      return { ok: true, httpStatus: resp.status, latency };
+    } catch (err) {
+      if (timer) clearTimeout(timer);
+      const latency = performance.now() - start;
+      return { ok: false, error: err && err.name ? err.name : String(err), latency };
+    }
+  }
+
+  async function runTest({url, total, concurrency, rate, timeout}) {
+    stopRequested = false;
+    results = [];
+    $('running').textContent = '実行中...';
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    downloadBtn.disabled = true;
+
+    let sent = 0, completed = 0, success = 0, fail = 0;
+    const latencies = [];
+
+    const startTime = performance.now();   // ★開始時間
+
+    // rate limiter
+    let tokens = rate > 0 ? rate : Infinity;
+    let lastRefill = performance.now();
+    const replenish = () => {
+      if (rate <= 0) { tokens = Infinity; return; }
+      const now = performance.now();
+      const delta = (now - lastRefill) / 1000;
+      if (delta <= 0) return;
+      tokens = Math.min(rate, tokens + delta * rate);
+      lastRefill = now;
+    };
+
+    async function worker() {
+      while (true) {
+        if (stopRequested) break;
+        if (sent >= total) break;
+        if (rate > 0) {
+          replenish();
+          if (tokens < 1) {
+            await sleep(5);
+            continue;
+          }
+          tokens -= 1;
+        }
+        const idx = sent++;
+        const ts = Date.now();
+        const r = await sendFetch(url, timeout);
+        r.index = idx+1;
+        r.ts = ts;
+        results.push(r);
+        completed++;
+        if (r.ok) { success++; latencies.push(r.latency); } else { fail++; if(r.latency) latencies.push(r.latency); }
+      }
+    }
+
+    const nWorkers = Math.max(1, Math.min(concurrency, total));
+    const workers = [];
+    for (let i=0;i<nWorkers;i++) workers.push(worker());
+    await Promise.all(workers);
+
+    const endTime = performance.now();     // ★終了時間
+    const elapsedSec = (endTime - startTime) / 1000;
+    const rps = (completed / elapsedSec).toFixed(2);
+
+    $('running').textContent = stopRequested ? '停止しました' : '完了';
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    downloadBtn.disabled = false;
+
+    const mean = latencies.length ? (latencies.reduce((a,b)=>a+b,0)/latencies.length).toFixed(2) : 'N/A';
+    const min = latencies.length ? Math.min(...latencies).toFixed(2) : 'N/A';
+    const max = latencies.length ? Math.max(...latencies).toFixed(2) : 'N/A';
+
+    updateStatsDisplay(
+`最終結果
+Total requested: ${total}
+Completed: ${completed}
+Success: ${success}
+Fail: ${fail}
+Latency(ms): avg ${mean}  min ${min}  max ${max}
+Elapsed time: ${elapsedSec.toFixed(2)} s
+Average RPS: ${rps}`
+    );
+    drawHistogram(latencies);
+  }
+
+  startBtn.addEventListener('click', async () => {
+    const url = $('url').value.trim();
+    const total = parseInt($('total').value, 10) || 0;
+    const concurrency = parseInt($('concurrency').value, 10) || 1;
+    const rate = parseInt($('rate').value, 10) || 0;
+    const timeout = parseInt($('timeout').value, 10) || 0;
+    if (!url || total <= 0) { alert('URL と 総リクエスト数 を正しく入力してください。'); return; }
+    await runTest({url, total, concurrency, rate, timeout});
+  });
+
+  stopBtn.addEventListener('click', () => {
+    stopRequested = true;
+    $('running').textContent = '停止要求中...';
+    stopBtn.disabled = true;
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const csv = makeCSV(results);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'load_test_results.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>
