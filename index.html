@@ -27,6 +27,12 @@
         <li><a href="https://github.com/TRBX304/sound_visualizer" target="_blank">Sound Visualizer</a></li>
         <li><a href="https://trbx304.github.io/guitar_ear_training/" target="_blank">ギター耳コピ練習サイト</a></li>
         <li><a href="https://trbx304.github.io/gemini_nano/" target="_blank">Gemini NANO chat site</a></li>
+        <hr>
+        <h2>JavaScript 標準入力</h2>
+        <h3>数字として入力するとき<h3>
+        <p>const fs = require('fs');<br>const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/).map(Number);</p>
+        <h3>文字列として入力するとき<h3>
+        <p>const fs = require('fs');<br>const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/);</p>
     </ul>
 
 </body>
