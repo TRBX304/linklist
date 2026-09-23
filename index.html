@@ -37,61 +37,17 @@
         <p>const fs = require('fs');<br>const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/);</p>
 
         <h2>JavaScript 標準入力2</h2>
-        <pre><code>const fs = require('fs');
-
-/**
- * 標準入力を一括取得し、スペースや改行区切りで順次取り出すスキャナークラス
- */
-class Scanner {
-  constructor() {
-    // 標準入力 (0 または '/dev/stdin') を一括で文字列として取得
-    const input = fs.readFileSync(0, 'utf-8');
-    // 空白・改行・タブなどで分割して配列化（末尾の空文字を除外）
-    this.tokens = input.trim().split(/\s+/);
-    this.ptr = 0;
-  }
-
-  // 1. 次の要素を【文字列】として取得
-  next() {
-    return this.tokens[this.ptr++];
-  }
-
-  // 2. 次の要素を【数値 (number)】として取得
-  nextInt() {
-    return Number(this.next());
-  }
-
-  // 3. 次の要素を【BigInt (超巨大整数)】として取得
-  nextBigInt() {
-    return BigInt(this.next());
-  }
+    　　<pre><code>class Scanner {
+  t = require('fs').readFileSync(0, 'utf8').trim().split(/\s+/);
+  i = 0;
+  next() { return this.t[this.i++]; }
+  nextInt() { return +this.next(); }
+  nextBigInt() { return BigInt(this.next()); }
 }
-
-// ==================================================
-// 実装テンプレート
-// ==================================================
-function main() {
-  const sc = new Scanner();
-
-  // --- よくある受け取り方のパターン ---
-
-  // パターン1: 1つずつ変数に取得（型が違ってもOK）
-  const N = sc.nextInt();   // 数値
-  const S = sc.next();      // 文字列
-
-  // パターン2: N 個の要素を配列で受け取る
-  const A = [];
-  for (let i = 0; i < N; i++) {
-    A.push(sc.nextInt());
-  }
-  // ※ Array.from を使う短縮表記:
-  // const A = Array.from({ length: N }, () => sc.nextInt());
-
-  // パターン3: 巨大な整数（10^18など）を受け取る
-  // const X = sc.nextBigInt();
-
-  // --- 処理と出力 ---
-  console.log(N, S);
+          
+function main(){
+    const sc = new Scanner();
+    //処理はここから
 }
 
 main();</code></pre>
