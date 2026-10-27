@@ -51,6 +51,39 @@ function main(){
 }
 
 main();</code></pre>
+        <h2>Go言語ひな型</h2>
+        pre><code>package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+)
+
+var (
+	sc  = bufio.NewScanner(os.Stdin)
+	out = bufio.NewWriter(os.Stdout)
+)
+
+func main() {
+	defer out.Flush()
+	sc.Buffer(make([]byte, 1024*1024), 1<<30)
+	sc.Split(bufio.ScanWords)
+
+	n := readInt()
+	// 処理はここから
+    // fmt.Fprintln(out, ...)
+	ans(n)
+}
+
+func readStr() string {if !sc.Scan() {panic("入力が足りない") };return sc.Text()}
+func readInt() int {n, err := strconv.Atoi(readStr());if err != nil {panic(err)};return n}
+func readFloat() float64 {f, err := strconv.ParseFloat(readStr(), 64);if err != nil {panic(err)};return f}
+func readInts(n int) []int {a := make([]int, n);for i := range a {a[i] = readInt()};return a}
+func readStrs(n int) []string {a := make([]string, n);for i := range a {a[i] = readStr()};return a}
+func ans(a ...any) { for i, v := range a { if i > 0 {out.WriteByte(' ')};switch x := v.(type) {case []int: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(strconv.Itoa(y))};case []string: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(y)};default: fmt.Fprint(out, v) }};out.WriteByte('\n')}
+</code></pre>
     </ul>
 
 </body>
