@@ -82,7 +82,7 @@ func readInt() int {n, err := strconv.Atoi(readStr());if err != nil {panic(err)}
 func readFloat() float64 {f, err := strconv.ParseFloat(readStr(), 64);if err != nil {panic(err)};return f}
 func readInts(n int) []int {a := make([]int, n);for i := range a {a[i] = readInt()};return a}
 func readStrs(n int) []string {a := make([]string, n);for i := range a {a[i] = readStr()};return a}
-func ans(a ...any) { for i, v := range a { if i > 0 {out.WriteByte(' ')};switch x := v.(type) {case []int: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(strconv.Itoa(y))};case []string: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(y)};default: fmt.Fprint(out, v) }};out.WriteByte('\n')}
+func ans(a ...any) {for i, v := range a { if i > 0 {out.WriteByte(' ')};switch x := v.(type) {case []int: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(strconv.Itoa(y))};case []string: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(y)};default: fmt.Fprint(out, v) }};out.WriteByte('\n')}
 </code></pre>
     </ul>
 
