@@ -84,6 +84,26 @@ func readInts(n int) []int {a := make([]int, n);for i := range a {a[i] = readInt
 func readStrs(n int) []string {a := make([]string, n);for i := range a {a[i] = readStr()};return a}
 func ans(a ...any) {for i, v := range a { if i > 0 {out.WriteByte(' ')};switch x := v.(type) {case []int: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(strconv.Itoa(y))};case []string: for j, y := range x {if j > 0 {out.WriteByte(' ')};out.WriteString(y)};default: fmt.Fprint(out, v) }};out.WriteByte('\n')}
 </code></pre>
+			<h2>Javaひな型</h2>
+			<pre><code>import java.io.*;
+import java.util.*;
+import java.util.stream.*;
+
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st = new StringTokenizer("");
+    static PrintWriter out = new PrintWriter(new BufferedOutputStream(System.out));
+    static String next() { while (!st.hasMoreTokens()) try { st = new StringTokenizer(br.readLine()); } catch (IOException e) { throw new UncheckedIOException(e); } return st.nextToken(); }
+    static int nextInt() { return Integer.parseInt(next()); }
+    static long nextLong() { return Long.parseLong(next()); }
+    static void ans(int[] a) { out.println(Arrays.stream(a).mapToObj(String::valueOf).collect(Collectors.joining(" "))); }
+    public static void main(String[] args) {
+        int n = nextInt();
+        // 処理はここから
+        out.println(n);
+        out.flush();
+    }
+}</code></pre>
     </ul>
 
 </body>
